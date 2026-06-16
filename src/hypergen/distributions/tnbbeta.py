@@ -4,6 +4,11 @@ Implements the density, exact (rejection-free) reparameterized sampling via the
 ``T_p \\circ H_q`` transform of a ``Beta(eps, eps)`` base sample, and a
 Gauss-Legendre quadrature helper for the normalizing constant used in the
 analytic KL term of the TNBbeta-VAE.
+
+Reference:
+    Lederman & Schein (2026), "The Triply-Randomized Negative Binomial Beta
+    for Robust Regression and Conjugate Models of Bounded Support Data":
+    https://arxiv.org/abs/2606.11624
 """
 
 from __future__ import annotations

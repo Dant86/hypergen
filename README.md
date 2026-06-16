@@ -44,6 +44,7 @@ uv run pytest tests/ -v
 
 ## References
 
+- Lederman & Schein (2026) TNBbeta: https://arxiv.org/abs/2606.11624
 - Davidson et al. (2018) S-VAE: https://arxiv.org/abs/1804.00891
 - Davidson et al. (2019) Increasing Expressivity: https://arxiv.org/abs/1910.02912
 - De Cao & Aziz (2020) Power Spherical: https://arxiv.org/abs/2006.04437
