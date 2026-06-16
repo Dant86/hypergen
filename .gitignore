@@ -216,3 +216,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+/notebooks/tnbbeta_distribution_notebook_dollar_math (1).ipynb
