@@ -29,7 +29,7 @@ MODEL_REGISTRY = {
 
 BETA_SWEEP = [0.1, 0.25, 0.5, 1.0, 2.0, 4.0]
 LATENT_DIM_SWEEP = [16, 32, 64, 128, 256]
-SWEEP_EPOCHS = 20
+SWEEP_EPOCHS = 50
 
 CIFAR100Loader = DataLoader[tuple[torch.Tensor, torch.Tensor]]
 
@@ -121,13 +121,20 @@ def _train_short(
     epochs: int,
 ) -> None:
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
-    for _ in range(epochs):
+    for epoch in range(epochs):
+        epoch_loss = 0.0
+        n_batches = 0
         for images, _labels in loader:
             images = images.to(device)
             optimizer.zero_grad()
-            loss, _ = model.loss(images)
+            loss, out = model.loss(images)
             loss.backward()
             optimizer.step()
+            epoch_loss += loss.item()
+            n_batches += 1
+        if epoch % 10 == 0 or epoch == epochs - 1:
+            kl_val = out.kl.item() if out is not None else 0.0
+            print(f"  epoch {epoch:3d}  loss={epoch_loss / n_batches:.2f}  kl={kl_val:.2f}")
 
 
 def _eval_model(
