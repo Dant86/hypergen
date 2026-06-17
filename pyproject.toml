@@ -1,0 +1,56 @@
+[project]
+name = "hypergen"
+version = "0.1.0"
+description = "Hyperspherical Latent Generative Models: TNBbeta-VAE and baselines"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.9",
+    "numpy>=2.0",
+    "power-spherical>=0.4.0",
+    "scipy>=1.13",
+    "torch>=2.4",
+    "torchvision>=0.19",
+    "wandb>=0.17",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyright>=1.1.380",
+    "pytest>=8.3",
+    "ruff>=0.6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hypergen"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "apps", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "N"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["hypergen"]
+force-sort-within-sections = true
+
+[tool.pyright]
+include = ["src", "apps", "tests"]
+typeCheckingMode = "strict"
+pythonVersion = "3.13"
+# torch (and scipy) ship incomplete type stubs, so strict mode otherwise floods
+# with unknown-type noise on every tensor op rather than catching real bugs.
+reportMissingTypeStubs = false
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportIncompatibleMethodOverride = false
+reportAssignmentType = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
