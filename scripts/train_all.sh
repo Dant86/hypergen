@@ -24,6 +24,7 @@ set -euo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 export PYTHONUNBUFFERED=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export TORCH_CUDNN_V8_API_DISABLED=1
 
 if ! command -v uv &> /dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
