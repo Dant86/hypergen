@@ -7,11 +7,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import itertools
 from pathlib import Path
 
 import torch
-torch.backends.cudnn.enabled = False
 from torch.utils.data import DataLoader
 import torchvision
 from torchvision import transforms
@@ -20,6 +18,8 @@ from hypergen.baselines import VMFVAE, GaussianVAE, PowerSphericalVAE
 from hypergen.metrics import LinearProbe, active_units, isotropy_score
 from hypergen.models import TNBbetaVAE
 
+torch.backends.cudnn.enabled = False
+
 MODEL_REGISTRY = {
     "gaussian": GaussianVAE,
     "vmf": VMFVAE,
@@ -27,10 +27,9 @@ MODEL_REGISTRY = {
     "tnbbeta": TNBbetaVAE,
 }
 
-P_SWEEP = [0.2, 0.35, 0.5, 0.65, 0.8]
-Q_SWEEP = [0.0, 0.05, 0.1, 0.15, 0.2]
-EPS_SWEEP = [0.5, 1.0, 2.0, 5.0, 10.0]
+BETA_SWEEP = [0.1, 0.25, 0.5, 1.0, 2.0, 4.0]
 LATENT_DIM_SWEEP = [16, 32, 64, 128, 256]
+SWEEP_EPOCHS = 20
 
 CIFAR100Loader = DataLoader[tuple[torch.Tensor, torch.Tensor]]
 
@@ -38,7 +37,7 @@ CIFAR100Loader = DataLoader[tuple[torch.Tensor, torch.Tensor]]
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run latent-space ablations.")
     parser.add_argument("--model", choices=list(MODEL_REGISTRY), default="tnbbeta")
-    parser.add_argument("--checkpoint", type=Path, required=True)
+    parser.add_argument("--checkpoint", type=Path, default=None)
     parser.add_argument("--latent-dim", type=int, default=64)
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--batch-size", type=int, default=256)
@@ -115,9 +114,107 @@ def run_probe(
     print(f"linear_probe top1={top1:.4f} top5={top5:.4f}")
 
 
+def _train_short(
+    model: torch.nn.Module,
+    loader: CIFAR100Loader,
+    device: torch.device,
+    epochs: int,
+) -> None:
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
+    for _ in range(epochs):
+        for images, _labels in loader:
+            images = images.to(device)
+            optimizer.zero_grad()
+            loss, _ = model.loss(images)
+            loss.backward()
+            optimizer.step()
+
+
+def _eval_model(
+    model: torch.nn.Module, loader: CIFAR100Loader, device: torch.device
+) -> tuple[float, int, int]:
+    model.eval()
+    mus = collect_mus(model, loader, device)
+    score = isotropy_score(mus)
+    active = active_units(mus)
+    return score.item(), int(active.sum().item()), mus.shape[1]
+
+
+def run_param_sweep(data_dir: Path, batch_size: int, latent_dim: int, device: torch.device) -> None:
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+        ]
+    )
+    train_dataset = torchvision.datasets.CIFAR100(
+        root=str(data_dir), train=True, download=True, transform=train_transform
+    )
+    train_loader: CIFAR100Loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True
+    )
+    eval_transform = transforms.Compose([transforms.ToTensor()])
+    eval_dataset = torchvision.datasets.CIFAR100(
+        root=str(data_dir), train=False, download=True, transform=eval_transform
+    )
+    eval_loader: CIFAR100Loader = DataLoader(
+        eval_dataset, batch_size=batch_size, shuffle=False, num_workers=4
+    )
+
+    print(f"{'beta':>6} {'isotropy':>10} {'active_units':>14}")
+    for beta in BETA_SWEEP:
+        torch.manual_seed(0)
+        model = TNBbetaVAE(latent_dim=latent_dim, beta=beta).to(device)
+        _train_short(model, train_loader, device, SWEEP_EPOCHS)
+        score, active, total = _eval_model(model, eval_loader, device)
+        print(f"{beta:6.2f} {score:10.4f} {active:>6}/{total}")
+
+
+def run_dim_scaling(data_dir: Path, batch_size: int, device: torch.device) -> None:
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+        ]
+    )
+    train_dataset = torchvision.datasets.CIFAR100(
+        root=str(data_dir), train=True, download=True, transform=train_transform
+    )
+    train_loader: CIFAR100Loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True
+    )
+    eval_transform = transforms.Compose([transforms.ToTensor()])
+    eval_dataset = torchvision.datasets.CIFAR100(
+        root=str(data_dir), train=False, download=True, transform=eval_transform
+    )
+    eval_loader: CIFAR100Loader = DataLoader(
+        eval_dataset, batch_size=batch_size, shuffle=False, num_workers=4
+    )
+
+    print(f"{'dim':>6} {'isotropy':>10} {'active_units':>14}")
+    for d in LATENT_DIM_SWEEP:
+        torch.manual_seed(0)
+        model = TNBbetaVAE(latent_dim=d, beta=1.0).to(device)
+        _train_short(model, train_loader, device, SWEEP_EPOCHS)
+        score, active, total = _eval_model(model, eval_loader, device)
+        print(f"{d:6d} {score:10.4f} {active:>6}/{total}")
+
+
 def main() -> None:
     args = parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if args.ablation == "param_sweep":
+        run_param_sweep(args.data_dir, args.batch_size, args.latent_dim, device)
+        return
+    if args.ablation == "dim_scaling":
+        run_dim_scaling(args.data_dir, args.batch_size, device)
+        return
+
+    if args.checkpoint is None:
+        raise SystemExit("--checkpoint is required for isotropy/probe ablations")
 
     model_cls = MODEL_REGISTRY[args.model]
     model = model_cls(latent_dim=args.latent_dim).to(device)
@@ -130,14 +227,6 @@ def main() -> None:
         run_isotropy(model, loader, device)
     elif args.ablation == "probe":
         run_probe(model, loader, device)
-    elif args.ablation == "param_sweep":
-        for p, q, eps in itertools.zip_longest(P_SWEEP, Q_SWEEP, EPS_SWEEP):
-            print(
-                f"sweep point: p={p} q={q} eps={eps} (re-train with these fixed for full ablation)"
-            )
-    elif args.ablation == "dim_scaling":
-        for d in LATENT_DIM_SWEEP:
-            print(f"latent_dim={d} (re-train per dimension for full ablation)")
 
 
 if __name__ == "__main__":

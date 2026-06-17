@@ -49,6 +49,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# ── sweep ablations train from scratch (no checkpoint needed) ────────────────
+if [[ "${ABLATION}" == "param_sweep" || "${ABLATION}" == "dim_scaling" ]]; then
+    echo "[$(date)] Running ${ABLATION} (trains short runs from scratch)"
+    uv run --no-sync python apps/eval_latent.py \
+        --ablation "${ABLATION}" \
+        --latent-dim "${LATENT_DIM}" \
+        "${PASSTHROUGH_ARGS[@]}"
+    echo "[$(date)] DONE: ${ABLATION}"
+    exit 0
+fi
+
 # ── eval all four models sequentially ─────────────────────────────────────────
 MODELS=(gaussian vmf power_spherical tnbbeta)
 

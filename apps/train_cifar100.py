@@ -10,13 +10,14 @@ import argparse
 from pathlib import Path
 
 import torch
-torch.backends.cudnn.enabled = False
 from torch.utils.data import DataLoader
 import torchvision
 from torchvision import transforms
 
 from hypergen.baselines import VMFVAE, GaussianVAE, PowerSphericalVAE
 from hypergen.models import TNBbetaVAE
+
+torch.backends.cudnn.enabled = False
 
 LATENT_DIM = 64
 BATCH_SIZE = 256

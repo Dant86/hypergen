@@ -11,13 +11,14 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import torch
-torch.backends.cudnn.enabled = False
 import torchvision
 from torchvision import transforms
 from torchvision.utils import make_grid
 
 from hypergen.baselines import VMFVAE, GaussianVAE, PowerSphericalVAE
 from hypergen.models import TNBbetaVAE
+
+torch.backends.cudnn.enabled = False
 
 MODEL_REGISTRY = {
     "gaussian": GaussianVAE,
