@@ -31,7 +31,8 @@ _EPS_CLAMP = 1e-7
 
 
 def _log_iv_numpy(
-    nu: float, kappa_np: np.ndarray[tuple[int, ...], np.dtype[np.floating]]  # type: ignore[type-var]
+    nu: float,
+    kappa_np: np.ndarray[tuple[int, ...], np.dtype[np.floating]],  # type: ignore[type-var]
 ) -> np.ndarray[tuple[int, ...], np.dtype[np.floating]]:  # type: ignore[type-var]
     """Numerically stable log I_nu(kappa) via scipy.
 

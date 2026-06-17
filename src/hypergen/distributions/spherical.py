@@ -103,19 +103,22 @@ class TNBbetaSpherical(Distribution):
         return ((1.0 + cos_sim) / 2.0).clamp(_EPS_CLAMP, 1.0 - _EPS_CLAMP)
 
     def log_prob(self, value: torch.Tensor) -> torch.Tensor:
-        """Density of x on S^{d-1}, up to the surface-measure normalization.
+        """Full density of x on S^{d-1}.
 
-        log p(x) = log TNBbeta(R(x)) + (d-3)/2 * log(1 - R(x)^2) + const,
-        where the additive constant (log surface area of S^{d-2}, log 2) is
-        independent of (mu, p, q, eps) and is dropped here since it cancels
-        in the KL term used for training (matching the spec's KL formula).
+        log p(x) = log TNBbeta(R(x)) + (d-3)/2 * log(1 - (2R-1)^2)
+                   - log(surface_area(S^{d-2})) - log(2)
         """
         r = self.alignment(value)
         d = self.dim
         jacobian_term = (
             (d - 3) / 2.0 * torch.log((1.0 - (2.0 * r - 1.0).pow(2)).clamp_min(_EPS_CLAMP))
         )
-        return self.tnbbeta.log_prob(r) + jacobian_term
+        log_surface_d_minus_2 = (
+            math.log(2.0)
+            + ((d - 1) / 2.0) * math.log(math.pi)
+            - torch.lgamma(torch.tensor((d - 1) / 2.0, dtype=value.dtype, device=value.device))
+        )
+        return self.tnbbeta.log_prob(r) + jacobian_term - log_surface_d_minus_2 - math.log(2.0)
 
     @staticmethod
     def log_uniform_density(dim: int, dtype: torch.dtype, device: torch.device) -> torch.Tensor:

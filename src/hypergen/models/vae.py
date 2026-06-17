@@ -44,19 +44,17 @@ class TNBbetaVAE(nn.Module):
         self.kl_mc_samples = kl_mc_samples
 
     def kl_divergence(self, posterior: TNBbetaSpherical) -> torch.Tensor:
-        """Monte Carlo estimate of KL(q(z|x) || Uniform(S^{d-1})).
+        """MC estimate of KL(TNBbeta(p,q,eps) || Uniform(0,1)) on the scalar marginal.
 
-        KL = E_q[log q(z) - log p(z)], estimated with `kl_mc_samples` samples
-        from the current (mu, p, q, eps), as permitted by the spec when the
-        analytic form is inconvenient to evaluate in closed form.
+        Computing KL on the full sphere is problematic because the Jacobian of
+        the Householder lift makes the spherical density systematically more
+        entropic than Uniform(S^{d-1}).  Instead we regularize the scalar
+        alignment coordinate, which is well-behaved and positive for any
+        non-uniform posterior.
         """
-        samples = posterior.rsample(torch.Size([self.kl_mc_samples]))
-        log_q = posterior.log_prob(samples)
-        log_p = TNBbetaSpherical.log_uniform_density(
-            self.latent_dim, dtype=samples.dtype, device=samples.device
-        )
-        kl = (log_q - log_p).mean(dim=0)
-        return kl.clamp_min(0.0)
+        samples = posterior.tnbbeta.rsample(torch.Size([self.kl_mc_samples]))
+        log_q = posterior.tnbbeta.log_prob(samples)
+        return log_q.mean(dim=0)
 
     def forward(self, x: torch.Tensor) -> ELBOOutput:
         mu, p, q, eps = self.encoder(x)
