@@ -34,6 +34,18 @@ mkdir -p logs checkpoints
 
 uv sync
 
+# ── parse checkpoint root from args (default: checkpoints/) ───────────────────
+CKPT_ROOT="checkpoints"
+PASSTHROUGH_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --checkpoint-dir)
+            CKPT_ROOT="$2"; shift 2 ;;
+        *)
+            PASSTHROUGH_ARGS+=("$1"); shift ;;
+    esac
+done
+
 # ── train all four models in parallel, one per GPU ────────────────────────────
 MODELS=(gaussian vmf power_spherical tnbbeta)
 PIDS=()
@@ -48,8 +60,8 @@ for i in "${!MODELS[@]}"; do
         --epochs 200 \
         --batch-size 256 \
         --seed 0 \
-        --checkpoint-dir "checkpoints/${model}" \
-        "$@" \
+        --checkpoint-dir "${CKPT_ROOT}/${model}" \
+        "${PASSTHROUGH_ARGS[@]}" \
         > "logs/${model}_${SLURM_JOB_ID}.out" \
         2> "logs/${model}_${SLURM_JOB_ID}.err" &
     PIDS+=($!)
