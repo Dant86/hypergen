@@ -10,6 +10,7 @@ import argparse
 from pathlib import Path
 
 import torch
+torch.backends.cudnn.enabled = False
 from torch.utils.data import DataLoader
 import torchvision
 from torchvision import transforms

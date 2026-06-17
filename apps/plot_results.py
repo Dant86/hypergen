@@ -11,6 +11,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import torch
+torch.backends.cudnn.enabled = False
 import torchvision
 from torchvision import transforms
 from torchvision.utils import make_grid
