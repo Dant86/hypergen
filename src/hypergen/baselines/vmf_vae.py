@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
+import numpy as np
 from power_spherical import HypersphericalUniform
 from scipy import special
 import torch
@@ -29,27 +30,46 @@ from hypergen.models.encoder import ConvBackbone
 _EPS_CLAMP = 1e-7
 
 
+def _log_iv_numpy(
+    nu: float, kappa_np: np.ndarray[tuple[int, ...], np.dtype[np.floating]]  # type: ignore[type-var]
+) -> np.ndarray[tuple[int, ...], np.dtype[np.floating]]:  # type: ignore[type-var]
+    """Numerically stable log I_nu(kappa) via scipy.
+
+    Uses ive (exponentially-scaled) to avoid overflow for large kappa,
+    and falls back to the small-kappa asymptotic form
+    log I_nu(kappa) ~ nu * log(kappa/2) - log(Gamma(nu+1))
+    when ive underflows to zero (small kappa, large nu).
+    """
+    ive_val = special.ive(nu, kappa_np)
+    safe = ive_val > 0
+    result = np.empty_like(kappa_np, dtype=np.float64)
+    result[safe] = np.log(ive_val[safe]) + kappa_np[safe]
+    # Small-kappa asymptotic: I_nu(kappa) ~ (kappa/2)^nu / Gamma(nu+1)
+    k_small = kappa_np[~safe]
+    result[~safe] = nu * np.log(np.maximum(k_small, 1e-30) / 2.0) - float(special.gammaln(nu + 1.0))
+    return result
+
+
 class _LogModifiedBesselFn(Function):
     """log I_nu(kappa), with gradient via the recurrence I_nu' = I_{nu-1} - (nu/kappa) I_nu."""
 
     @staticmethod
     def forward(ctx: object, nu: float, kappa: torch.Tensor) -> torch.Tensor:
-        kappa_np = kappa.detach().cpu().numpy()
-        log_iv = (
-            torch.as_tensor(special.ive(nu, kappa_np), dtype=kappa.dtype, device=kappa.device).log()
-            + kappa
-        )
+        kappa_np = kappa.detach().cpu().double().numpy()
+        result_np = _log_iv_numpy(nu, kappa_np)
+        log_iv_tensor = torch.as_tensor(result_np, dtype=kappa.dtype, device=kappa.device)
         ctx.save_for_backward(kappa)  # type: ignore[attr-defined]
         ctx.nu = nu  # type: ignore[attr-defined]
-        return log_iv
+        return log_iv_tensor
 
     @staticmethod
     def backward(ctx: object, grad_output: torch.Tensor) -> tuple[None, torch.Tensor]:
         (kappa,) = ctx.saved_tensors  # type: ignore[attr-defined]
         nu: float = ctx.nu  # type: ignore[attr-defined]
-        d_log_iv = log_iv(nu - 1.0, kappa).exp() / log_iv(nu, kappa).exp() - nu / kappa.clamp_min(
-            _EPS_CLAMP
-        )
+        # d/dk log I_nu(k) = I_{nu-1}(k) / I_nu(k) - nu/k
+        log_iv_nu_minus_1 = log_iv(nu - 1.0, kappa)
+        log_iv_nu = log_iv(nu, kappa)
+        d_log_iv = (log_iv_nu_minus_1 - log_iv_nu).exp() - nu / kappa.clamp_min(_EPS_CLAMP)
         return None, grad_output * d_log_iv
 
 
@@ -115,7 +135,8 @@ class VonMisesFisher(Distribution):
         d = self.dim
         kappa = self.kappa.clamp_min(_EPS_CLAMP)
         nu = d / 2.0
-        ratio = log_iv(nu, kappa).exp() / log_iv(nu - 1.0, kappa).exp()
+        # I_nu / I_{nu-1} in log-space to avoid overflow when log_iv >> 0
+        ratio = (log_iv(nu, kappa) - log_iv(nu - 1.0, kappa)).exp()
         return -self.log_normalizer() - kappa * ratio
 
 
