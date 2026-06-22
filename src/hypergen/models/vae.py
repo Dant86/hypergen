@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import nn
+from torch.distributions import Beta
 
 from hypergen.distributions.spherical import TNBbetaSpherical
 from hypergen.models.decoder import ConvDecoder
@@ -44,17 +45,18 @@ class TNBbetaVAE(nn.Module):
         self.kl_mc_samples = kl_mc_samples
 
     def kl_divergence(self, posterior: TNBbetaSpherical) -> torch.Tensor:
-        """MC estimate of KL(TNBbeta(p,q,eps) || Uniform(0,1)) on the scalar marginal.
+        """MC estimate of KL(TNBbeta(p,q,eps) || Beta((d-1)/2, (d-1)/2)) on the scalar marginal.
 
-        Computing KL on the full sphere is problematic because the Jacobian of
-        the Householder lift makes the spherical density systematically more
-        entropic than Uniform(S^{d-1}).  Instead we regularize the scalar
-        alignment coordinate, which is well-behaved and positive for any
-        non-uniform posterior.
+        The alignment coordinate R = (1+mu^T x)/2 of a uniform point on
+        S^{d-1} follows Beta((d-1)/2, (d-1)/2), so that is the correct
+        scalar prior.
         """
+        alpha = (self.latent_dim - 1) / 2.0
+        prior = Beta(alpha, alpha)
         samples = posterior.tnbbeta.rsample(torch.Size([self.kl_mc_samples]))
         log_q = posterior.tnbbeta.log_prob(samples)
-        return log_q.mean(dim=0)
+        log_p = prior.log_prob(samples)
+        return (log_q - log_p).mean(dim=0)
 
     def forward(self, x: torch.Tensor) -> ELBOOutput:
         mu, p, q, eps = self.encoder(x)
