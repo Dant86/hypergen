@@ -51,7 +51,7 @@ class TNBbetaVAE(nn.Module):
         S^{d-1} follows Beta((d-1)/2, (d-1)/2), so that is the correct
         scalar prior.
         """
-        alpha = (self.latent_dim - 1) / 2.0
+        alpha = torch.tensor((self.latent_dim - 1) / 2.0, device=posterior.mu.device)
         prior = Beta(alpha, alpha)
         samples = posterior.tnbbeta.rsample(torch.Size([self.kl_mc_samples]))
         log_q = posterior.tnbbeta.log_prob(samples)
