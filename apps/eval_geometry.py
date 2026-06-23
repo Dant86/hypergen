@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=Path("plots"))
     parser.add_argument(
         "--eval",
-        choices=["cosine_sim", "knn", "fid", "pca", "all"],
+        choices=["cosine_sim", "knn", "fid", "pca", "circle", "all"],
         default="all",
     )
     parser.add_argument(
@@ -382,6 +382,64 @@ def run_pca(
     print(f"saved {path}")
 
 
+def run_circle(
+    mus: torch.Tensor,
+    labels: torch.Tensor,
+    model_name: str,
+    output_dir: Path,
+    dataset: str = "cifar10",
+) -> None:
+    mus_np = mus.numpy()
+    labels_np = labels.numpy()
+
+    if dataset == "cifar10":
+        class_names = CIFAR10_CLASSES
+        plot_labels = labels_np
+        n_classes = 10
+        cmap = plt.get_cmap("tab10", n_classes)
+    else:
+        class_names = CIFAR100_SUPERCLASS_NAMES
+        plot_labels = np.array([CIFAR100_SUPERCLASS_MAP[c] for c in labels_np])
+        n_classes = 20
+        cmap = plt.get_cmap("tab20", n_classes)
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    theta = np.linspace(0, 2 * np.pi, 200)
+    ax.plot(np.cos(theta), np.sin(theta), c="gray", lw=0.5, alpha=0.3)
+
+    for c in range(n_classes):
+        mask = plot_labels == c
+        ax.scatter(
+            mus_np[mask, 0],
+            mus_np[mask, 1],
+            c=[cmap(c)],
+            s=6,
+            alpha=0.6,
+            label=class_names[c],
+        )
+    ax.set_xlim(-1.3, 1.3)
+    ax.set_ylim(-1.3, 1.3)
+    ax.set_aspect("equal")
+    ax.set_xlabel("$z_1$")
+    ax.set_ylabel("$z_2$")
+    ds_label = "CIFAR-10" if dataset == "cifar10" else "CIFAR-100"
+    ax.set_title(f"Latent codes on $S^1$ — {model_name} ({ds_label})")
+    ax.legend(
+        fontsize=7,
+        markerscale=2,
+        ncol=1 if n_classes <= 10 else 2,
+        loc="center left",
+        bbox_to_anchor=(1.02, 0.5),
+    )
+    fig.tight_layout()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    suffix = "_cifar10" if dataset == "cifar10" else ""
+    path = output_dir / f"circle_{model_name}{suffix}.png"
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"saved {path}")
+
+
 def main() -> None:
     args = parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -394,7 +452,8 @@ def main() -> None:
     loader = build_eval_loader(args.data_dir, args.batch_size, args.dataset)
     run_all = args.eval == "all"
 
-    if run_all or args.eval == "cosine_sim" or args.eval == "knn" or args.eval == "pca":
+    needs_mus = run_all or args.eval in ("cosine_sim", "knn", "pca", "circle")
+    if needs_mus:
         mus, labels = collect_mus_and_labels(model, loader, device)
 
     if run_all or args.eval == "cosine_sim":
@@ -412,6 +471,10 @@ def main() -> None:
     if run_all or args.eval == "pca":
         print(f"=== PCA ({args.model}) ===")
         run_pca(mus, labels, args.model, args.output_dir, args.dataset)
+
+    if args.eval == "circle":
+        print(f"=== Circle plot ({args.model}) ===")
+        run_circle(mus, labels, args.model, args.output_dir, args.dataset)
 
 
 if __name__ == "__main__":
