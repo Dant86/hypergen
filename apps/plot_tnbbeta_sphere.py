@@ -58,33 +58,33 @@ def eval_density(
 
 CONFIGS = [
     {
-        "title": r"$p=0.5,\; q=0.0,\; \varepsilon=3.0$"
-        + "\n(symmetric, moderate concentration)",
-        "p": 0.5,
+        "title": r"$p=0.85,\; q=0.0,\; \varepsilon=3.0$"
+        + "\n(broad cap around $\\mu$)",
+        "p": 0.85,
         "q": 0.0,
         "eps": 3.0,
         "mu": np.array([0.0, 0.0, 1.0]),
     },
     {
-        "title": r"$p=0.5,\; q=0.0,\; \varepsilon=10.0$"
-        + "\n(symmetric, high concentration)",
-        "p": 0.5,
+        "title": r"$p=0.9,\; q=0.0,\; \varepsilon=10.0$"
+        + "\n(tight concentration at $\\mu$)",
+        "p": 0.9,
         "q": 0.0,
         "eps": 10.0,
         "mu": np.array([0.0, 0.0, 1.0]),
     },
     {
-        "title": r"$p=0.75,\; q=0.2,\; \varepsilon=5.0$"
-        + "\n(off-centre mode, heavy-tailed)",
-        "p": 0.75,
+        "title": r"$p=0.8,\; q=0.2,\; \varepsilon=5.0$"
+        + "\n(heavy-tailed cap around $\\mu$)",
+        "p": 0.8,
         "q": 0.2,
         "eps": 5.0,
         "mu": np.array([0.0, 0.0, 1.0]),
     },
     {
-        "title": r"$p=0.7,\; q=0.15,\; \varepsilon=6.0,\; \mu=\frac{1}{\sqrt{3}}[1,1,1]$"
-        + "\n(tilted mode, moderate concentration)",
-        "p": 0.7,
+        "title": r"$p=0.85,\; q=0.15,\; \varepsilon=6.0,\; \mu=\frac{1}{\sqrt{3}}[1,1,1]$"
+        + "\n(tilted mode direction)",
+        "p": 0.85,
         "q": 0.15,
         "eps": 6.0,
         "mu": np.array([1.0, 1.0, 1.0]) / np.sqrt(3.0),
@@ -129,7 +129,7 @@ def main() -> None:
         ax.set_ylim([-1.3, 1.3])
         ax.set_zlim([-1.3, 1.3])  # type: ignore[attr-defined]
         ax.set_box_aspect([1, 1, 1])  # type: ignore[attr-defined]
-        ax.view_init(elev=25, azim=45)  # type: ignore[attr-defined]
+        ax.view_init(elev=55, azim=45)  # type: ignore[attr-defined]
         ax.set_axis_off()
         ax.set_title(cfg["title"], fontsize=10, pad=-5)
 
