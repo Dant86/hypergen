@@ -54,15 +54,19 @@ def parse_args() -> argparse.Namespace:
         choices=["cosine_sim", "knn", "fid", "pca", "all"],
         default="all",
     )
+    parser.add_argument(
+        "--dataset",
+        choices=["cifar100", "cifar10"],
+        default="cifar100",
+    )
     return parser.parse_args()
 
 
-def build_eval_loader(data_dir: Path, batch_size: int) -> CIFAR100Loader:
+def build_eval_loader(data_dir: Path, batch_size: int, dataset: str = "cifar100") -> CIFAR100Loader:
     transform = transforms.Compose([transforms.ToTensor()])
-    dataset = torchvision.datasets.CIFAR100(
-        root=str(data_dir), train=False, download=True, transform=transform
-    )
-    return DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+    ds_cls = torchvision.datasets.CIFAR10 if dataset == "cifar10" else torchvision.datasets.CIFAR100
+    ds = ds_cls(root=str(data_dir), train=False, download=True, transform=transform)
+    return DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=4)
 
 
 @torch.no_grad()
@@ -184,164 +188,195 @@ def run_fid(model: torch.nn.Module, loader: CIFAR100Loader, device: torch.device
     print(f"fid={fid:.2f}")
 
 
-def run_pca(mus: torch.Tensor, labels: torch.Tensor, model_name: str, output_dir: Path) -> None:
+CIFAR10_CLASSES = [
+    "airplane",
+    "automobile",
+    "bird",
+    "cat",
+    "deer",
+    "dog",
+    "frog",
+    "horse",
+    "ship",
+    "truck",
+]
+
+CIFAR100_SUPERCLASS_MAP = [
+    4,
+    1,
+    14,
+    8,
+    0,
+    6,
+    7,
+    7,
+    18,
+    3,
+    3,
+    14,
+    9,
+    18,
+    7,
+    11,
+    3,
+    9,
+    7,
+    11,
+    6,
+    11,
+    5,
+    10,
+    7,
+    6,
+    13,
+    15,
+    3,
+    15,
+    0,
+    11,
+    1,
+    10,
+    12,
+    14,
+    16,
+    17,
+    5,
+    0,
+    2,
+    4,
+    17,
+    8,
+    14,
+    5,
+    2,
+    17,
+    4,
+    1,
+    1,
+    10,
+    16,
+    15,
+    9,
+    0,
+    12,
+    12,
+    8,
+    5,
+    2,
+    4,
+    6,
+    10,
+    15,
+    2,
+    17,
+    8,
+    16,
+    12,
+    1,
+    9,
+    16,
+    12,
+    8,
+    13,
+    13,
+    13,
+    16,
+    3,
+    9,
+    5,
+    6,
+    15,
+    13,
+    0,
+    11,
+    4,
+    0,
+    18,
+    14,
+    6,
+    11,
+    9,
+    1,
+    10,
+    13,
+    2,
+    17,
+    3,
+]
+
+CIFAR100_SUPERCLASS_NAMES = [
+    "aquatic mammals",
+    "fish",
+    "flowers",
+    "food containers",
+    "fruit & veg",
+    "household electrical",
+    "household furniture",
+    "insects",
+    "large carnivores",
+    "large outdoor man-made",
+    "large outdoor natural",
+    "large omnivores & herbivores",
+    "medium mammals",
+    "non-insect invertebrates",
+    "people",
+    "reptiles",
+    "small mammals",
+    "trees",
+    "vehicles 1",
+    "vehicles 2",
+]
+
+
+def run_pca(
+    mus: torch.Tensor,
+    labels: torch.Tensor,
+    model_name: str,
+    output_dir: Path,
+    dataset: str = "cifar100",
+) -> None:
     mus_centered = mus - mus.mean(dim=0)
     _, _, vh = torch.linalg.svd(mus_centered, full_matrices=False)
     proj = (mus_centered @ vh[:2].T).numpy()
     labels_np = labels.numpy()
 
-    superclass_map = [
-        4,
-        1,
-        14,
-        8,
-        0,
-        6,
-        7,
-        7,
-        18,
-        3,
-        3,
-        14,
-        9,
-        18,
-        7,
-        11,
-        3,
-        9,
-        7,
-        11,
-        6,
-        11,
-        5,
-        10,
-        7,
-        6,
-        13,
-        15,
-        3,
-        15,
-        0,
-        11,
-        1,
-        10,
-        12,
-        14,
-        16,
-        17,
-        5,
-        0,
-        2,
-        4,
-        17,
-        8,
-        14,
-        5,
-        2,
-        17,
-        4,
-        1,
-        1,
-        10,
-        16,
-        15,
-        9,
-        0,
-        12,
-        12,
-        8,
-        5,
-        2,
-        4,
-        6,
-        10,
-        15,
-        2,
-        17,
-        8,
-        16,
-        12,
-        1,
-        9,
-        16,
-        12,
-        8,
-        13,
-        13,
-        13,
-        16,
-        3,
-        9,
-        5,
-        6,
-        15,
-        13,
-        0,
-        11,
-        4,
-        0,
-        18,
-        14,
-        6,
-        11,
-        9,
-        1,
-        10,
-        13,
-        2,
-        17,
-        3,
-    ]
-    superclass_names = [
-        "aquatic mammals",
-        "fish",
-        "flowers",
-        "food containers",
-        "fruit & veg",
-        "household electrical",
-        "household furniture",
-        "insects",
-        "large carnivores",
-        "large outdoor man-made",
-        "large outdoor natural",
-        "large omnivores & herbivores",
-        "medium mammals",
-        "non-insect invertebrates",
-        "people",
-        "reptiles",
-        "small mammals",
-        "trees",
-        "vehicles 1",
-        "vehicles 2",
-    ]
-    super_labels = np.array([superclass_map[c] for c in labels_np])
-    n_super = 20
+    if dataset == "cifar10":
+        class_names = CIFAR10_CLASSES
+        plot_labels = labels_np
+        n_classes = 10
+        cmap = plt.get_cmap("tab10", n_classes)
+    else:
+        class_names = CIFAR100_SUPERCLASS_NAMES
+        plot_labels = np.array([CIFAR100_SUPERCLASS_MAP[c] for c in labels_np])
+        n_classes = 20
+        cmap = plt.get_cmap("tab20", n_classes)
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    cmap = plt.get_cmap("tab20", n_super)
-    for sc in range(n_super):
-        mask = super_labels == sc
+    for c in range(n_classes):
+        mask = plot_labels == c
         ax.scatter(
             proj[mask, 0],
             proj[mask, 1],
-            c=[cmap(sc)],
-            s=3,
-            alpha=0.5,
-            label=superclass_names[sc],
+            c=[cmap(c)],
+            s=4 if dataset == "cifar10" else 3,
+            alpha=0.6 if dataset == "cifar10" else 0.5,
+            label=class_names[c],
         )
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
-    ax.set_title(f"PCA of latent codes — {model_name}")
+    ds_label = "CIFAR-10" if dataset == "cifar10" else "CIFAR-100 superclass"
+    ax.set_title(f"PCA of latent codes — {model_name} ({ds_label})")
     ax.legend(
-        fontsize=6,
+        fontsize=7 if dataset == "cifar10" else 6,
         markerscale=3,
-        ncol=2,
+        ncol=1 if dataset == "cifar10" else 2,
         loc="center left",
         bbox_to_anchor=(1.02, 0.5),
     )
     fig.tight_layout()
     output_dir.mkdir(parents=True, exist_ok=True)
-    path = output_dir / f"pca_{model_name}.png"
+    suffix = "_cifar10" if dataset == "cifar10" else ""
+    path = output_dir / f"pca_{model_name}{suffix}.png"
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"saved {path}")
@@ -356,7 +391,7 @@ def main() -> None:
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model.eval()
 
-    loader = build_eval_loader(args.data_dir, args.batch_size)
+    loader = build_eval_loader(args.data_dir, args.batch_size, args.dataset)
     run_all = args.eval == "all"
 
     if run_all or args.eval == "cosine_sim" or args.eval == "knn" or args.eval == "pca":
@@ -376,7 +411,7 @@ def main() -> None:
 
     if run_all or args.eval == "pca":
         print(f"=== PCA ({args.model}) ===")
-        run_pca(mus, labels, args.model, args.output_dir)
+        run_pca(mus, labels, args.model, args.output_dir, args.dataset)
 
 
 if __name__ == "__main__":

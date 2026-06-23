@@ -38,6 +38,7 @@ CKPT_ROOT="checkpoints"
 LATENT_DIM=64
 EPOCHS=200
 EVAL_TYPE="all"
+DATASET="cifar100"
 PASSTHROUGH_ARGS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,6 +46,7 @@ while [[ $# -gt 0 ]]; do
         --latent-dim)     LATENT_DIM="$2"; shift 2 ;;
         --epochs)         EPOCHS="$2"; shift 2 ;;
         --eval)           EVAL_TYPE="$2"; shift 2 ;;
+        --dataset)        DATASET="$2"; shift 2 ;;
         *)                PASSTHROUGH_ARGS+=("$1"); shift ;;
     esac
 done
@@ -60,6 +62,7 @@ for model in "${MODELS[@]}"; do
         --checkpoint "${ckpt}" \
         --latent-dim "${LATENT_DIM}" \
         --eval "${EVAL_TYPE}" \
+        --dataset "${DATASET}" \
         "${PASSTHROUGH_ARGS[@]}"
     echo "[$(date)] DONE: ${model}"
 done
