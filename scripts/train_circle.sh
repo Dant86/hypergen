@@ -9,10 +9,10 @@
 #SBATCH --job-name=hypergen_circle
 #SBATCH --partition=general
 #SBATCH --qos=general
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --time=4:00:00
+#SBATCH --gres=gpu:a100:4
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=128G
+#SBATCH --time=2:00:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
@@ -49,11 +49,14 @@ done
 LATENT_DIM=2
 MODELS=(gaussian vmf power_spherical tnbbeta)
 
-# ── train all four models sequentially with d=2 ─────────────────────────────
-for model in "${MODELS[@]}"; do
+# ── train all four models in parallel, one per GPU ───────────────────────────
+PIDS=()
+
+for i in "${!MODELS[@]}"; do
+    model="${MODELS[$i]}"
     ckpt_dir="${CKPT_ROOT}/${model}_d2"
-    echo "[$(date)] Training ${model} (d=${LATENT_DIM})"
-    uv run --no-sync python apps/train_cifar100.py \
+    echo "[$(date)] Starting ${model} on GPU ${i} (d=${LATENT_DIM})"
+    CUDA_VISIBLE_DEVICES="${i}" uv run --no-sync python apps/train_cifar100.py \
         --model "${model}" \
         --latent-dim "${LATENT_DIM}" \
         --beta 1.0 \
@@ -63,9 +66,26 @@ for model in "${MODELS[@]}"; do
         --data-dir "${DATA_DIR}" \
         --checkpoint-dir "${ckpt_dir}" \
         --dataset cifar10 \
-        "${PASSTHROUGH_ARGS[@]}"
-    echo "[$(date)] DONE training: ${model}"
+        "${PASSTHROUGH_ARGS[@]}" \
+        > "logs/${model}_d2_${SLURM_JOB_ID}.out" \
+        2> "logs/${model}_d2_${SLURM_JOB_ID}.err" &
+    PIDS+=($!)
 done
+
+FAILED=0
+for i in "${!MODELS[@]}"; do
+    if ! wait "${PIDS[$i]}"; then
+        echo "[$(date)] FAILED: ${MODELS[$i]} (PID ${PIDS[$i]})"
+        FAILED=1
+    else
+        echo "[$(date)] DONE training: ${MODELS[$i]}"
+    fi
+done
+
+if [[ "${FAILED}" -ne 0 ]]; then
+    echo "Training failed, skipping plots"
+    exit 1
+fi
 
 # ── generate circle plots on CIFAR-10 ───────────────────────────────────────
 for model in "${MODELS[@]}"; do
