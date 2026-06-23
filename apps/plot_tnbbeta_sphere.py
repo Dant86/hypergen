@@ -115,15 +115,49 @@ def main() -> None:
         ax.plot_surface(  # type: ignore[attr-defined]
             x, y, z,
             facecolors=colors,
-            rstride=1, cstride=1,
+            rstride=2, cstride=2,
             antialiased=False, shade=False,
         )
+
+        r_wire = 1.005
+        n_wire = 100
+        for lat in np.linspace(0, np.pi, 7)[1:-1]:
+            th = np.linspace(0, 2 * np.pi, n_wire)
+            ax.plot(  # type: ignore[attr-defined]
+                r_wire * np.sin(lat) * np.cos(th),
+                r_wire * np.sin(lat) * np.sin(th),
+                r_wire * np.cos(lat) * np.ones_like(th),
+                color="black", lw=0.3, alpha=0.35,
+            )
+        for lon in np.linspace(0, 2 * np.pi, 13)[:-1]:
+            ph = np.linspace(0, np.pi, n_wire)
+            ax.plot(  # type: ignore[attr-defined]
+                r_wire * np.sin(ph) * np.cos(lon),
+                r_wire * np.sin(ph) * np.sin(lon),
+                r_wire * np.cos(ph),
+                color="black", lw=0.3, alpha=0.35,
+            )
 
         mu = cfg["mu"]
         ax.quiver(  # type: ignore[attr-defined]
             0, 0, 0, mu[0] * 1.5, mu[1] * 1.5, mu[2] * 1.5,
             color="cyan", arrow_length_ratio=0.08, linewidth=2.0, alpha=0.9,
         )
+
+        arrow_len = 1.5
+        for vec, label in [
+            ([arrow_len, 0, 0], "$\\hat{x}$"),
+            ([0, arrow_len, 0], "$\\hat{y}$"),
+            ([0, 0, arrow_len], "$\\hat{z}$"),
+        ]:
+            ax.quiver(  # type: ignore[attr-defined]
+                0, 0, 0, vec[0], vec[1], vec[2],
+                color="black", arrow_length_ratio=0.06, linewidth=1.2, alpha=0.8,
+            )
+            ax.text(  # type: ignore[attr-defined]
+                vec[0] * 1.15, vec[1] * 1.15, vec[2] * 1.15,
+                label, fontsize=9, color="black", ha="center", va="center",
+            )
 
         ax.set_xlim([-1.3, 1.3])
         ax.set_ylim([-1.3, 1.3])
