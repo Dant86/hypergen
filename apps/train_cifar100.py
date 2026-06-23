@@ -47,11 +47,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
     parser.add_argument("--wandb", action="store_true", help="Log metrics to wandb.")
+    parser.add_argument("--dataset", choices=["cifar100", "cifar10"], default="cifar100")
     return parser.parse_args()
 
 
 def build_dataloader(
-    data_dir: Path, batch_size: int
+    data_dir: Path, batch_size: int, dataset: str = "cifar100"
 ) -> DataLoader[tuple[torch.Tensor, torch.Tensor]]:
     train_transform = transforms.Compose(
         [
@@ -60,10 +61,9 @@ def build_dataloader(
             transforms.ToTensor(),
         ]
     )
-    dataset = torchvision.datasets.CIFAR100(
-        root=str(data_dir), train=True, download=True, transform=train_transform
-    )
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
+    ds_cls = torchvision.datasets.CIFAR10 if dataset == "cifar10" else torchvision.datasets.CIFAR100
+    ds = ds_cls(root=str(data_dir), train=True, download=True, transform=train_transform)
+    return DataLoader(ds, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True)
 
 
 def main() -> None:
@@ -75,7 +75,7 @@ def main() -> None:
     model = model_cls(latent_dim=args.latent_dim, beta=args.beta).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-    loader = build_dataloader(args.data_dir, args.batch_size)
+    loader = build_dataloader(args.data_dir, args.batch_size, args.dataset)
     args.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     run = None

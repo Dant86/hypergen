@@ -62,6 +62,7 @@ for model in "${MODELS[@]}"; do
         --seed 0 \
         --data-dir "${DATA_DIR}" \
         --checkpoint-dir "${ckpt_dir}" \
+        --dataset cifar10 \
         "${PASSTHROUGH_ARGS[@]}"
     echo "[$(date)] DONE training: ${model}"
 done
