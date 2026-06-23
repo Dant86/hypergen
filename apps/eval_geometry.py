@@ -441,6 +441,22 @@ def run_circle(
     print(f"saved {path}")
 
 
+@torch.no_grad()
+def _collect_recon_losses(
+    model: torch.nn.Module, loader: CIFAR100Loader, device: torch.device
+) -> torch.Tensor:
+    all_losses = []
+    for images, _labels in loader:
+        images = images.to(device)
+        loss, out = model.loss(images)
+        recon = out.recon_loss if hasattr(out.recon_loss, "shape") and out.recon_loss.dim() == 0 else out.recon_loss
+        per_sample = torch.nn.functional.binary_cross_entropy_with_logits(
+            out.recon, images, reduction="none"
+        ).sum(dim=(1, 2, 3))
+        all_losses.append(per_sample.cpu())
+    return torch.cat(all_losses, dim=0)
+
+
 def run_ood(
     model: torch.nn.Module,
     in_dist_loader: CIFAR100Loader,
@@ -450,18 +466,7 @@ def run_ood(
 ) -> None:
     from sklearn.metrics import roc_auc_score
 
-    mus_id, labels_id = collect_mus_and_labels(model, in_dist_loader, device)
-    mus_id_norm = mus_id / mus_id.norm(dim=-1, keepdim=True).clamp_min(1e-8)
-
-    classes = labels_id.unique()
-    centroids = torch.stack([mus_id_norm[labels_id == c].mean(dim=0) for c in classes])
-    centroids = centroids / centroids.norm(dim=-1, keepdim=True).clamp_min(1e-8)
-
-    def max_cosine_to_centroids(mus: torch.Tensor) -> torch.Tensor:
-        mus_n = mus / mus.norm(dim=-1, keepdim=True).clamp_min(1e-8)
-        return (mus_n @ centroids.T).max(dim=1).values
-
-    scores_id = max_cosine_to_centroids(mus_id)
+    recon_id = _collect_recon_losses(model, in_dist_loader, device)
 
     svhn_transform = transforms.Compose([transforms.ToTensor()])
     svhn_ds = torchvision.datasets.SVHN(
@@ -470,16 +475,15 @@ def run_ood(
     svhn_loader: CIFAR100Loader = DataLoader(
         svhn_ds, batch_size=batch_size, shuffle=False, num_workers=4
     )
-    mus_ood, _ = collect_mus_and_labels(model, svhn_loader, device)
-    scores_ood = max_cosine_to_centroids(mus_ood)
+    recon_ood = _collect_recon_losses(model, svhn_loader, device)
 
-    y_true = np.concatenate([np.ones(len(scores_id)), np.zeros(len(scores_ood))])
-    y_score = np.concatenate([scores_id.numpy(), scores_ood.numpy()])
+    y_true = np.concatenate([np.ones(len(recon_id)), np.zeros(len(recon_ood))])
+    y_score = np.concatenate([-recon_id.numpy(), -recon_ood.numpy()])
     auroc = roc_auc_score(y_true, y_score)
 
-    print(f"ood_auroc={auroc:.4f}  (in-dist: CIFAR-10, OOD: SVHN)")
-    print(f"  in-dist  max_cos_sim: mean={scores_id.mean():.4f} std={scores_id.std():.4f}")
-    print(f"  ood      max_cos_sim: mean={scores_ood.mean():.4f} std={scores_ood.std():.4f}")
+    print(f"ood_auroc={auroc:.4f}  (in-dist: CIFAR-100, OOD: SVHN, score: -recon_loss)")
+    print(f"  in-dist  recon_loss: mean={recon_id.mean():.1f} std={recon_id.std():.1f}")
+    print(f"  ood      recon_loss: mean={recon_ood.mean():.1f} std={recon_ood.std():.1f}")
 
 
 def main() -> None:
