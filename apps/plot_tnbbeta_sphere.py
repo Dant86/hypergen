@@ -142,6 +142,7 @@ def main() -> None:
     fig.suptitle(
         "TNBbeta Spherical Distribution on $S^2$",
         fontsize=14,
+        x=0.45,
         y=0.99,
     )
     fig.subplots_adjust(left=0.02, right=0.88, top=0.93, bottom=0.02, wspace=-0.15, hspace=0.08)
