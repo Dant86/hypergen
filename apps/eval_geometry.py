@@ -5,6 +5,7 @@ Evaluations:
   knn          — k-nearest-neighbor accuracy (k=5,10,20)
   fid          — FID between real and reconstructed test images
   pca          — PCA projection of latent codes, saved as PNG
+  ood          — OOD detection (CIFAR-10 vs SVHN) via latent-space scores
 
 Usage:
     uv run python apps/eval_geometry.py --model tnbbeta \
@@ -51,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=Path("plots"))
     parser.add_argument(
         "--eval",
-        choices=["cosine_sim", "knn", "fid", "pca", "circle", "all"],
+        choices=["cosine_sim", "knn", "fid", "pca", "circle", "ood", "all"],
         default="all",
     )
     parser.add_argument(
@@ -440,6 +441,47 @@ def run_circle(
     print(f"saved {path}")
 
 
+def run_ood(
+    model: torch.nn.Module,
+    in_dist_loader: CIFAR100Loader,
+    data_dir: Path,
+    batch_size: int,
+    device: torch.device,
+) -> None:
+    from sklearn.metrics import roc_auc_score
+
+    mus_id, labels_id = collect_mus_and_labels(model, in_dist_loader, device)
+    mus_id_norm = mus_id / mus_id.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+
+    classes = labels_id.unique()
+    centroids = torch.stack([mus_id_norm[labels_id == c].mean(dim=0) for c in classes])
+    centroids = centroids / centroids.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+
+    def max_cosine_to_centroids(mus: torch.Tensor) -> torch.Tensor:
+        mus_n = mus / mus.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+        return (mus_n @ centroids.T).max(dim=1).values
+
+    scores_id = max_cosine_to_centroids(mus_id)
+
+    svhn_transform = transforms.Compose([transforms.ToTensor()])
+    svhn_ds = torchvision.datasets.SVHN(
+        root=str(data_dir), split="test", download=True, transform=svhn_transform
+    )
+    svhn_loader: CIFAR100Loader = DataLoader(
+        svhn_ds, batch_size=batch_size, shuffle=False, num_workers=4
+    )
+    mus_ood, _ = collect_mus_and_labels(model, svhn_loader, device)
+    scores_ood = max_cosine_to_centroids(mus_ood)
+
+    y_true = np.concatenate([np.ones(len(scores_id)), np.zeros(len(scores_ood))])
+    y_score = np.concatenate([scores_id.numpy(), scores_ood.numpy()])
+    auroc = roc_auc_score(y_true, y_score)
+
+    print(f"ood_auroc={auroc:.4f}  (in-dist: CIFAR-10, OOD: SVHN)")
+    print(f"  in-dist  max_cos_sim: mean={scores_id.mean():.4f} std={scores_id.std():.4f}")
+    print(f"  ood      max_cos_sim: mean={scores_ood.mean():.4f} std={scores_ood.std():.4f}")
+
+
 def main() -> None:
     args = parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -475,6 +517,10 @@ def main() -> None:
     if args.eval == "circle":
         print(f"=== Circle plot ({args.model}) ===")
         run_circle(mus, labels, args.model, args.output_dir, args.dataset)
+
+    if run_all or args.eval == "ood":
+        print(f"=== OOD detection ({args.model}) ===")
+        run_ood(model, loader, args.data_dir, args.batch_size, device)
 
 
 if __name__ == "__main__":
