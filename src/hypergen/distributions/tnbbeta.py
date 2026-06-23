@@ -51,7 +51,7 @@ class TNBbeta(Distribution):
 
     arg_constraints = {
         "p": constraints.interval(0.0, 1.0),
-        "q": constraints.interval(0.0, 0.25),
+        "q": constraints.interval(0.0, 1.0),
         "eps": constraints.positive,
     }
     support = constraints.interval(0.0, 1.0)

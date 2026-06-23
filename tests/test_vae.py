@@ -52,5 +52,5 @@ def test_encoder_output_constraints() -> None:
     model = TNBbetaVAE(latent_dim=LATENT_DIM)
     _mu, p, q, eps = model.encoder(_random_batch(16))
     assert torch.all(p > 0.0) and torch.all(p < 1.0)
-    assert torch.all(q >= 0.0) and torch.all(q < 0.25)
+    assert torch.all(q >= 0.0) and torch.all(q < 1.0)
     assert torch.all(eps > 0.0)

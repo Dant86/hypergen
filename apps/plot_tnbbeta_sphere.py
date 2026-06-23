@@ -102,7 +102,7 @@ def main() -> None:
     # Panel 3: vary q (tail weight)
     ax2 = fig.add_subplot(gs[0, 2])
     base_p, base_eps = 0.7, 5.0
-    for q_val, color in [(0.0, "#1b9e77"), (0.05, "#d95f02"), (0.15, "#7570b3"), (0.24, "#e7298a")]:
+    for q_val, color in [(0.0, "#1b9e77"), (0.2, "#d95f02"), (0.5, "#7570b3"), (0.9, "#e7298a")]:
         density = eval_scalar_density(y_grid, base_p, q_val, base_eps)
         ax2.plot(y_grid, density, color=color, lw=2, label=f"$q={q_val}$")
     ax2.set_xlabel("$y$", fontsize=11)

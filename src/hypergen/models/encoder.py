@@ -61,7 +61,7 @@ class TNBbetaEncoder(nn.Module):
         mu = mu_raw / mu_raw.norm(dim=-1, keepdim=True).clamp_min(1e-8)
 
         p = torch.sigmoid(self.p_head(feats).squeeze(-1)) * (1.0 - 2.0 * _P_CLAMP) + _P_CLAMP
-        q = (torch.sigmoid(self.q_head(feats).squeeze(-1)) / 4.0 - _Q_CLAMP).clamp_min(0.0)
+        q = torch.sigmoid(self.q_head(feats).squeeze(-1)) * (1.0 - 2.0 * _Q_CLAMP) + _Q_CLAMP
         eps = nn.functional.softplus(self.eps_head(feats).squeeze(-1)) + _EPS_FLOOR
 
         return mu, p, q, eps
