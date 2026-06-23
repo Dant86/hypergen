@@ -131,11 +131,11 @@ def main() -> None:
         ax.set_box_aspect([1, 1, 1])  # type: ignore[attr-defined]
         ax.view_init(elev=25, azim=45)  # type: ignore[attr-defined]
         ax.set_axis_off()
-        ax.set_title(cfg["title"], fontsize=10, pad=15)
+        ax.set_title(cfg["title"], fontsize=10, pad=-5)
 
         sm = cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
-        cbar = fig.colorbar(sm, ax=ax, shrink=0.55, aspect=18, pad=0.02)
+        cbar = fig.colorbar(sm, ax=ax, shrink=0.55, aspect=18, pad=-0.02)
         cbar.ax.tick_params(labelsize=8)
         cbar.set_label("log density", fontsize=9)
 
