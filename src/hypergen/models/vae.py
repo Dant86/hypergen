@@ -36,9 +36,15 @@ class TNBbetaVAE(nn.Module):
         kl_mc_samples: Number of Monte Carlo samples for the KL estimate.
     """
 
-    def __init__(self, latent_dim: int = 64, beta: float = 1.0, kl_mc_samples: int = 64) -> None:
+    def __init__(
+        self,
+        latent_dim: int = 64,
+        beta: float = 1.0,
+        kl_mc_samples: int = 64,
+        fixed_eps: float | None = 1.0,
+    ) -> None:
         super().__init__()
-        self.encoder = TNBbetaEncoder(latent_dim=latent_dim)
+        self.encoder = TNBbetaEncoder(latent_dim=latent_dim, fixed_eps=fixed_eps)
         self.decoder = ConvDecoder(latent_dim=latent_dim)
         self.latent_dim = latent_dim
         self.beta = beta

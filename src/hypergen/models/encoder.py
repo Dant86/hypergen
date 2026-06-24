@@ -41,15 +41,22 @@ class TNBbetaEncoder(nn.Module):
     Args:
         latent_dim: Dimensionality d of the latent sphere S^{d-1}.
         feature_dim: Width of the penultimate feature vector.
+        fixed_eps: If set, eps is fixed to this constant (not learned).
+            Lederman & Schein recommend fixing eps based on desired boundary
+            behavior rather than learning it.
     """
 
-    def __init__(self, latent_dim: int = 64, feature_dim: int = 512) -> None:
+    def __init__(
+        self, latent_dim: int = 64, feature_dim: int = 512, fixed_eps: float | None = 1.0
+    ) -> None:
         super().__init__()
         self.backbone = ConvBackbone(feature_dim=feature_dim)
         self.mu_head = nn.Linear(feature_dim, latent_dim)
         self.p_head = nn.Linear(feature_dim, 1)
         self.q_head = nn.Linear(feature_dim, 1)
-        self.eps_head = nn.Linear(feature_dim, 1)
+        self.fixed_eps = fixed_eps
+        if fixed_eps is None:
+            self.eps_head = nn.Linear(feature_dim, 1)
         self.latent_dim = latent_dim
 
     def forward(
@@ -62,6 +69,9 @@ class TNBbetaEncoder(nn.Module):
 
         p = torch.sigmoid(self.p_head(feats).squeeze(-1)) * (1.0 - 2.0 * _P_CLAMP) + _P_CLAMP
         q = torch.sigmoid(self.q_head(feats).squeeze(-1)) * (1.0 - 2.0 * _Q_CLAMP) + _Q_CLAMP
-        eps = nn.functional.softplus(self.eps_head(feats).squeeze(-1)) + _EPS_FLOOR
+        if self.fixed_eps is not None:
+            eps = torch.full_like(q, self.fixed_eps)
+        else:
+            eps = nn.functional.softplus(self.eps_head(feats).squeeze(-1)) + _EPS_FLOOR
 
         return mu, p, q, eps

@@ -48,6 +48,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("checkpoints"))
     parser.add_argument("--wandb", action="store_true", help="Log metrics to wandb.")
     parser.add_argument("--dataset", choices=["cifar100", "cifar10"], default="cifar100")
+    parser.add_argument(
+        "--fixed-eps", type=float, default=1.0,
+        help="Fix TNBbeta eps to this value (None to learn it). Ignored for baselines.",
+    )
     return parser.parse_args()
 
 
@@ -72,7 +76,10 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cls = MODEL_REGISTRY[args.model]
-    model = model_cls(latent_dim=args.latent_dim, beta=args.beta).to(device)
+    kwargs: dict[str, object] = {"latent_dim": args.latent_dim, "beta": args.beta}
+    if args.model == "tnbbeta":
+        kwargs["fixed_eps"] = args.fixed_eps
+    model = model_cls(**kwargs).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
     loader = build_dataloader(args.data_dir, args.batch_size, args.dataset)
