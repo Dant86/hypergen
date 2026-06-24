@@ -547,8 +547,11 @@ def main() -> None:
         run_circle(mus, labels, args.model, args.output_dir, args.dataset)
 
     if args.eval == "param_stats":
-        print(f"=== parameter statistics ({args.model}) ===")
-        run_param_stats(model, loader, device)
+        if args.model != "tnbbeta":
+            print(f"param_stats only applies to tnbbeta, skipping {args.model}")
+        else:
+            print(f"=== parameter statistics ({args.model}) ===")
+            run_param_stats(model, loader, device)
 
     if run_all or args.eval == "ood":
         print(f"=== OOD detection ({args.model}) ===")
