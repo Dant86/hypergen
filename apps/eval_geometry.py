@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
         help="Fixed eps value for TNBbeta model. Ignored for baselines.",
     )
     parser.add_argument(
-        "--q-max", type=float, default=0.25,
+        "--q-max", type=float, default=1.0,
         help="Upper bound for TNBbeta q parameter. Ignored for baselines.",
     )
     return parser.parse_args()
