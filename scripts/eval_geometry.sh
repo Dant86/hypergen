@@ -55,7 +55,11 @@ done
 MODELS=(gaussian vmf power_spherical tnbbeta)
 
 for model in "${MODELS[@]}"; do
-    ckpt="${CKPT_ROOT}/${model}/${model}_epoch${EPOCHS}.pt"
+    if [[ "${LATENT_DIM}" -eq 64 ]]; then
+        ckpt="${CKPT_ROOT}/${model}/${model}_epoch${EPOCHS}.pt"
+    else
+        ckpt="${CKPT_ROOT}/${model}_d${LATENT_DIM}/${model}_epoch${EPOCHS}.pt"
+    fi
     echo "[$(date)] Geometry eval: ${model} (${EVAL_TYPE})"
     uv run --no-sync python apps/eval_geometry.py \
         --model "${model}" \
