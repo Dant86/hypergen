@@ -47,7 +47,11 @@ class TNBbetaEncoder(nn.Module):
     """
 
     def __init__(
-        self, latent_dim: int = 64, feature_dim: int = 512, fixed_eps: float | None = 1.0
+        self,
+        latent_dim: int = 64,
+        feature_dim: int = 512,
+        fixed_eps: float | None = 1.0,
+        q_max: float = 0.25,
     ) -> None:
         super().__init__()
         self.backbone = ConvBackbone(feature_dim=feature_dim)
@@ -55,6 +59,7 @@ class TNBbetaEncoder(nn.Module):
         self.p_head = nn.Linear(feature_dim, 1)
         self.q_head = nn.Linear(feature_dim, 1)
         self.fixed_eps = fixed_eps
+        self.q_max = q_max
         if fixed_eps is None:
             self.eps_head = nn.Linear(feature_dim, 1)
         self.latent_dim = latent_dim
@@ -68,7 +73,7 @@ class TNBbetaEncoder(nn.Module):
         mu = mu_raw / mu_raw.norm(dim=-1, keepdim=True).clamp_min(1e-8)
 
         p = torch.sigmoid(self.p_head(feats).squeeze(-1)) * (1.0 - 2.0 * _P_CLAMP) + _P_CLAMP
-        q = torch.sigmoid(self.q_head(feats).squeeze(-1)) * (1.0 - 2.0 * _Q_CLAMP) + _Q_CLAMP
+        q = torch.sigmoid(self.q_head(feats).squeeze(-1)) * (self.q_max - 2.0 * _Q_CLAMP) + _Q_CLAMP
         if self.fixed_eps is not None:
             eps = torch.full_like(q, self.fixed_eps)
         else:

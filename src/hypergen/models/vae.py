@@ -42,9 +42,10 @@ class TNBbetaVAE(nn.Module):
         beta: float = 1.0,
         kl_mc_samples: int = 64,
         fixed_eps: float | None = 1.0,
+        q_max: float = 0.25,
     ) -> None:
         super().__init__()
-        self.encoder = TNBbetaEncoder(latent_dim=latent_dim, fixed_eps=fixed_eps)
+        self.encoder = TNBbetaEncoder(latent_dim=latent_dim, fixed_eps=fixed_eps, q_max=q_max)
         self.decoder = ConvDecoder(latent_dim=latent_dim)
         self.latent_dim = latent_dim
         self.beta = beta

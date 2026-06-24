@@ -52,6 +52,10 @@ def parse_args() -> argparse.Namespace:
         "--fixed-eps", type=float, default=1.0,
         help="Fix TNBbeta eps to this value (None to learn it). Ignored for baselines.",
     )
+    parser.add_argument(
+        "--q-max", type=float, default=0.25,
+        help="Upper bound for TNBbeta q parameter. Ignored for baselines.",
+    )
     return parser.parse_args()
 
 
@@ -79,6 +83,7 @@ def main() -> None:
     kwargs: dict[str, object] = {"latent_dim": args.latent_dim, "beta": args.beta}
     if args.model == "tnbbeta":
         kwargs["fixed_eps"] = args.fixed_eps
+        kwargs["q_max"] = args.q_max
     model = model_cls(**kwargs).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 

@@ -60,6 +60,14 @@ def parse_args() -> argparse.Namespace:
         choices=["cifar100", "cifar10"],
         default="cifar100",
     )
+    parser.add_argument(
+        "--fixed-eps", type=float, default=1.0,
+        help="Fixed eps value for TNBbeta model. Ignored for baselines.",
+    )
+    parser.add_argument(
+        "--q-max", type=float, default=0.25,
+        help="Upper bound for TNBbeta q parameter. Ignored for baselines.",
+    )
     return parser.parse_args()
 
 
@@ -515,7 +523,11 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model_cls = MODEL_REGISTRY[args.model]
-    model = model_cls(latent_dim=args.latent_dim).to(device)
+    kwargs: dict[str, object] = {"latent_dim": args.latent_dim}
+    if args.model == "tnbbeta":
+        kwargs["fixed_eps"] = args.fixed_eps
+        kwargs["q_max"] = args.q_max
+    model = model_cls(**kwargs).to(device)
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model.eval()
 
