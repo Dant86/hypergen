@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=Path("plots"))
     parser.add_argument(
         "--eval",
-        choices=["cosine_sim", "knn", "fid", "pca", "circle", "ood", "all"],
+        choices=["cosine_sim", "knn", "fid", "pca", "circle", "ood", "param_stats", "all"],
         default="all",
     )
     parser.add_argument(
@@ -486,6 +486,30 @@ def run_ood(
     print(f"  ood      recon_loss: mean={recon_ood.mean():.1f} std={recon_ood.std():.1f}")
 
 
+@torch.no_grad()
+def run_param_stats(
+    model: torch.nn.Module, loader: CIFAR100Loader, device: torch.device
+) -> None:
+    all_p, all_q, all_eps = [], [], []
+    for images, _labels in loader:
+        images = images.to(device)
+        out = model.forward(images)
+        all_p.append(out.p.cpu())
+        all_q.append(out.q.cpu())
+        all_eps.append(out.eps.cpu())
+    p = torch.cat(all_p)
+    q = torch.cat(all_q)
+    eps = torch.cat(all_eps)
+    for name, vals in [("p", p), ("q", q), ("eps", eps)]:
+        print(
+            f"{name}: mean={vals.mean():.4f} std={vals.std():.4f} "
+            f"min={vals.min():.4f} max={vals.max():.4f} "
+            f"median={vals.median():.4f} "
+            f"q25={vals.quantile(0.25):.4f} q75={vals.quantile(0.75):.4f} "
+            f"q95={vals.quantile(0.95):.4f}"
+        )
+
+
 def main() -> None:
     args = parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -521,6 +545,10 @@ def main() -> None:
     if args.eval == "circle":
         print(f"=== Circle plot ({args.model}) ===")
         run_circle(mus, labels, args.model, args.output_dir, args.dataset)
+
+    if args.eval == "param_stats":
+        print(f"=== parameter statistics ({args.model}) ===")
+        run_param_stats(model, loader, device)
 
     if run_all or args.eval == "ood":
         print(f"=== OOD detection ({args.model}) ===")
