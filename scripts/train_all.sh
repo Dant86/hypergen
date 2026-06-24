@@ -79,4 +79,59 @@ for i in "${!MODELS[@]}"; do
     fi
 done
 
-exit "${FAILED}"
+if [[ "${FAILED}" -ne 0 ]]; then
+    echo "Training failed, skipping evals"
+    exit 1
+fi
+
+# ── parse data-dir from passthrough args ─────────────────────────────────────
+DATA_DIR="data"
+for i in "${!PASSTHROUGH_ARGS[@]}"; do
+    if [[ "${PASSTHROUGH_ARGS[$i]}" == "--data-dir" ]]; then
+        DATA_DIR="${PASSTHROUGH_ARGS[$((i+1))]}"
+    fi
+done
+
+# ── run evals for all models ─────────────────────────────────────────────────
+EPOCHS=200
+for i in "${!PASSTHROUGH_ARGS[@]}"; do
+    if [[ "${PASSTHROUGH_ARGS[$i]}" == "--epochs" ]]; then
+        EPOCHS="${PASSTHROUGH_ARGS[$((i+1))]}"
+    fi
+done
+
+echo ""
+echo "=== EVALUATION SUITE ==="
+
+for model in "${MODELS[@]}"; do
+    ckpt="${CKPT_ROOT}/${model}/${model}_epoch${EPOCHS}.pt"
+    echo "[$(date)] Geometry evals: ${model}"
+    for eval_type in cosine_sim knn fid ood; do
+        uv run --no-sync python apps/eval_geometry.py \
+            --model "${model}" \
+            --checkpoint "${ckpt}" \
+            --latent-dim 64 \
+            --eval "${eval_type}" \
+            --data-dir "${DATA_DIR}"
+    done
+
+    echo "[$(date)] Probe: ${model}"
+    uv run --no-sync python apps/eval_latent.py \
+        --model "${model}" \
+        --checkpoint "${ckpt}" \
+        --latent-dim 64 \
+        --ablation probe \
+        --data-dir "${DATA_DIR}"
+
+    if [[ "${model}" == "tnbbeta" ]]; then
+        echo "[$(date)] Param stats: ${model}"
+        uv run --no-sync python apps/eval_geometry.py \
+            --model "${model}" \
+            --checkpoint "${ckpt}" \
+            --latent-dim 64 \
+            --eval param_stats \
+            --data-dir "${DATA_DIR}"
+    fi
+
+    echo "[$(date)] DONE evals: ${model}"
+done

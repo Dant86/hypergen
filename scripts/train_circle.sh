@@ -87,9 +87,10 @@ if [[ "${FAILED}" -ne 0 ]]; then
     exit 1
 fi
 
-# ── generate circle plots on CIFAR-10 ───────────────────────────────────────
+# ── run evals on CIFAR-10 ────────────────────────────────────────────────────
 for model in "${MODELS[@]}"; do
     ckpt="${CKPT_ROOT}/${model}_d2/${model}_epoch${EPOCHS}.pt"
+
     echo "[$(date)] Circle plot: ${model}"
     uv run --no-sync python apps/eval_geometry.py \
         --model "${model}" \
@@ -98,5 +99,28 @@ for model in "${MODELS[@]}"; do
         --data-dir "${DATA_DIR}" \
         --dataset cifar10 \
         --eval circle
-    echo "[$(date)] DONE plot: ${model}"
+
+    for eval_type in cosine_sim knn fid ood; do
+        echo "[$(date)] ${eval_type}: ${model}"
+        uv run --no-sync python apps/eval_geometry.py \
+            --model "${model}" \
+            --checkpoint "${ckpt}" \
+            --latent-dim "${LATENT_DIM}" \
+            --data-dir "${DATA_DIR}" \
+            --dataset cifar10 \
+            --eval "${eval_type}"
+    done
+
+    if [[ "${model}" == "tnbbeta" ]]; then
+        echo "[$(date)] Param stats: ${model}"
+        uv run --no-sync python apps/eval_geometry.py \
+            --model "${model}" \
+            --checkpoint "${ckpt}" \
+            --latent-dim "${LATENT_DIM}" \
+            --data-dir "${DATA_DIR}" \
+            --dataset cifar10 \
+            --eval param_stats
+    fi
+
+    echo "[$(date)] DONE evals: ${model}"
 done

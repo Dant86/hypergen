@@ -457,9 +457,8 @@ def _collect_recon_losses(
     for images, _labels in loader:
         images = images.to(device)
         loss, out = model.loss(images)
-        recon = out.recon_loss if hasattr(out.recon_loss, "shape") and out.recon_loss.dim() == 0 else out.recon_loss
-        per_sample = torch.nn.functional.binary_cross_entropy_with_logits(
-            out.recon, images, reduction="none"
+        per_sample = torch.nn.functional.mse_loss(
+            torch.sigmoid(out.recon), images, reduction="none"
         ).sum(dim=(1, 2, 3))
         all_losses.append(per_sample.cpu())
     return torch.cat(all_losses, dim=0)

@@ -179,7 +179,7 @@ class VMFVAE(nn.Module):
         z = posterior.rsample()
         recon = self.decoder(z)
         recon_loss = (
-            nn.functional.binary_cross_entropy_with_logits(recon, x, reduction="none")
+            nn.functional.mse_loss(torch.sigmoid(recon), x, reduction="none")
             .flatten(1)
             .sum(dim=1)
         )
