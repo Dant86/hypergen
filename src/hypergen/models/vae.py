@@ -43,27 +43,25 @@ class TNBbetaVAE(nn.Module):
         kl_mc_samples: int = 64,
         fixed_eps: float | None = 1.0,
         q_max: float = 0.25,
+        w1_beta: float = 500.0,
     ) -> None:
         super().__init__()
         self.encoder = TNBbetaEncoder(latent_dim=latent_dim, fixed_eps=fixed_eps, q_max=q_max)
         self.decoder = ConvDecoder(latent_dim=latent_dim)
         self.latent_dim = latent_dim
         self.beta = beta
+        self.w1_beta = w1_beta
         self.kl_mc_samples = kl_mc_samples
 
-    def kl_divergence(self, posterior: TNBbetaSpherical) -> torch.Tensor:
-        """MC estimate of KL(TNBbeta(p,q,eps) || Beta((d-1)/2, (d-1)/2)) on the scalar marginal.
-
-        The alignment coordinate R = (1+mu^T x)/2 of a uniform point on
-        S^{d-1} follows Beta((d-1)/2, (d-1)/2), so that is the correct
-        scalar prior.
-        """
-        alpha = torch.tensor((self.latent_dim - 1) / 2.0, device=posterior.mu.device)
+    def regularizer(self, posterior: TNBbetaSpherical) -> torch.Tensor:
+        """W_1(TNBbeta(p,q,eps) || Beta((d-1)/2, (d-1)/2)) on the scalar marginal."""
+        alpha = torch.tensor(
+            (self.latent_dim - 1) / 2.0,
+            dtype=posterior.mu.dtype,
+            device=posterior.mu.device,
+        )
         prior = Beta(alpha, alpha)
-        samples = posterior.tnbbeta.rsample(torch.Size([self.kl_mc_samples]))
-        log_q = posterior.tnbbeta.log_prob(samples)
-        log_p = prior.log_prob(samples)
-        return (log_q - log_p).mean(dim=0)
+        return posterior.tnbbeta.wasserstein1(prior, n_samples=self.kl_mc_samples)
 
     def forward(self, x: torch.Tensor) -> ELBOOutput:
         mu, p, q, eps = self.encoder(x)
@@ -77,13 +75,13 @@ class TNBbetaVAE(nn.Module):
             .sum(dim=1)
         )
 
-        kl = self.kl_divergence(posterior)
-        elbo = -(recon_loss + self.beta * kl)
+        w1 = self.regularizer(posterior)
+        elbo = -(recon_loss + self.w1_beta * w1)
 
         return ELBOOutput(
             elbo=elbo.mean(),
             recon_loss=recon_loss.mean(),
-            kl=kl.mean(),
+            kl=w1.mean(),
             recon=recon,
             mu=mu,
             p=p,

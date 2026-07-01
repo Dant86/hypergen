@@ -56,6 +56,10 @@ def parse_args() -> argparse.Namespace:
         "--q-max", type=float, default=1.0,
         help="Upper bound for TNBbeta q parameter. Ignored for baselines.",
     )
+    parser.add_argument(
+        "--w1-beta", type=float, default=500.0,
+        help="Coefficient on the W1 regularizer for TNBbeta. Ignored for baselines.",
+    )
     return parser.parse_args()
 
 
@@ -84,6 +88,7 @@ def main() -> None:
     if args.model == "tnbbeta":
         kwargs["fixed_eps"] = args.fixed_eps
         kwargs["q_max"] = args.q_max
+        kwargs["w1_beta"] = args.w1_beta
     model = model_cls(**kwargs).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 

@@ -103,6 +103,22 @@ class TNBbeta(Distribution):
 
         return log_base + log_term1 + log_term2
 
+    def wasserstein1(
+        self,
+        prior: Distribution,
+        n_samples: int = 64,
+    ) -> torch.Tensor:
+        """W_1 between self and prior via sorted-sample approximation.
+
+        For 1D distributions W_1 = integral |F^{-1}(u) - G^{-1}(u)| du,
+        which equals the L1 distance between sorted sample vectors.
+        """
+        y_post = self.rsample(torch.Size([n_samples]))  # (K, *batch)
+        y_prior = prior.rsample(torch.Size([n_samples] + list(self.batch_shape)))  # (K, *batch)
+        y_post_sorted = y_post.sort(dim=0).values
+        y_prior_sorted = y_prior.sort(dim=0).values
+        return (y_post_sorted - y_prior_sorted).abs().mean(dim=0)
+
     def normalizing_constant(self, n_points: int = 32) -> torch.Tensor:
         """Gauss-Legendre quadrature estimate of integral of the density over (0, 1).
 
